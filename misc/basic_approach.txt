@@ -1,0 +1,3 @@
+To simulate a flat file, data is added to a table with two columns, lineno and linevalue.
+The tables are named DAYXX_[example|part1|part2].
+A synonym is modified to point to the input table. It is named input_data.

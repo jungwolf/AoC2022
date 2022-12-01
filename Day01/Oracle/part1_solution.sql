@@ -1,9 +1,7 @@
 -- load input data like normal, including synonym change.
 -- no change from example soution.
 
--- not needed, still exists from example solution
-/*
-create view calories_by_elf as
+create or replace view calories_by_elf as
 select
   sum(a2) over (order by lineno rows UNBOUNDED PRECEDING) elf
   , linevalue calories
@@ -17,9 +15,8 @@ from
   )
 where linevalue is not null
 /
-*/
 
-select elf from (
+select total_calories from (
   select
     elf
     ,sum(calories) total_calories
@@ -29,4 +26,3 @@ select elf from (
     fetch first 1 rows only
 )
 /
---123

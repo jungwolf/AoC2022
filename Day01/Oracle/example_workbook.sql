@@ -53,10 +53,10 @@ where linevalue is not null
 
 -------------------------------------------------------------------------------------------
 -- final form
-create view calories_by_elf as
+create or replace view calories_by_elf as
 select
   sum(a2) over (order by lineno rows UNBOUNDED PRECEDING) elf
-  , linevalue calories
+  , to_number(linevalue) calories
 from
   (select 
     lineno
@@ -104,8 +104,7 @@ order by total_calories desc
 -------------------------------------------------------------------------------------------
 -- final form
 -- only display elf
-select elf
-from (
+select total_calories from (
   select
     elf
     ,sum(calories) total_calories
@@ -113,7 +112,7 @@ from (
   group by elf
   order by total_calories desc
     fetch first 1 rows only
-  )
+)
 /
 /*
 elf

@@ -3,6 +3,8 @@ create sequence line_number_sq;
 
 drop table day01_example;
 create table day01_example (lineno number, linevalue varchar2(4000));
+
+drop synonym input_data; 
 create synonym input_data for day01_example;
 
 --insert into input_data (lineno, linevalue) values (line_number_sq.nextval,'

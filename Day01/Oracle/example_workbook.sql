@@ -82,4 +82,42 @@ elf	calories
 5	10000
 */
 -------------------------------------------------------------------------------------------
+--Find the Elf carrying the most Calories. How many total Calories is that Elf carrying?
+-- find total calories by elf
+select
+  elf
+  ,sum(calories) total_calories
+from calories_by_elf
+group by elf
+/
+
+-- find elf carrying most calories
+select
+  elf
+  ,sum(calories) total_calories
+from calories_by_elf
+group by elf
+order by total_calories desc
+  fetch first 1 rows only
+/
+
+-------------------------------------------------------------------------------------------
+-- final form
+-- only display elf
+select elf
+from (
+  select
+    elf
+    ,sum(calories) total_calories
+  from calories_by_elf
+  group by elf
+  order by total_calories desc
+    fetch first 1 rows only
+  )
+/
+/*
+elf
+4
+*/
+-------------------------------------------------------------------------------------------
 

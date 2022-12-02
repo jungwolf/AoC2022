@@ -1,3 +1,6 @@
+-- part2 uses same data
+create or replace synonym input_data for day02_part1;
+
 -- start with first solution
 with rps_games(elf_move,my_move) as (
     select substr(linevalue,1,1) elf_move, substr(linevalue,3,1) my_move

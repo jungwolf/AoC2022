@@ -1,5 +1,7 @@
--- Sample
--- loaded data and renamed from sample input
+-- renamed synonym to part 1 data
+create or replace synonym input_data for day02_part1;
+
+-- same query as example_solution
 with rps_games(elf_move,my_move) as (
     select substr(linevalue,1,1) elf_move, substr(linevalue,3,1) my_move
     from input_data

@@ -1,4 +1,5 @@
 -- scratchpad for creating the solution
+create or replace synonym input_data for day02_example;
 select * from input_data;
 
 /* old game of rock/paper/scissors
@@ -64,7 +65,9 @@ select substr(linevalue,1,1) elf_move, substr(linevalue,3,1) my_move
 from input_data
 /
 
+/*
 -- whoops, forgot column aliases are not assigned until output...
+-- rewrite
 with move_score (the_move, the_score) as
   (select 'X', 1 the_score from dual
    union all select 'Y', 2 the_score from dual
@@ -78,6 +81,7 @@ from input_data i
   , move_score m
 where i.my_move = m.the_move
 /
+*/
 
 -- make base input a view
 with rps_games(elf_move,my_move) as (

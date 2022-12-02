@@ -1,0 +1,5 @@
+--One-liner to group input when separated by null lines:
+select linevalue,
+  count(case when linevalue is null then 1 else null end) over (order by lineno) count_gb
+from input_data
+/

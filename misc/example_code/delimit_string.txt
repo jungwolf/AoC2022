@@ -1,0 +1,114 @@
+-- such a common task yet takes a lot of code to do
+
+
+-- long recursive view
+WITH test_data ( delimited_string ) AS (
+  SELECT '1,2,40,-5,72' FROM DUAL
+),
+bounds ( delimited_string, start_idx, end_idx ) AS (
+  SELECT delimited_string,
+         1,
+         INSTR( delimited_string, ',', 1 )
+  FROM   test_data
+UNION ALL
+  SELECT delimited_string,
+         end_idx + 1,
+         INSTR( delimited_string, ',', end_idx + 1 )
+  FROM   bounds
+  WHERE  end_idx > 0
+)
+SELECT CASE end_idx
+       WHEN 0
+       THEN SUBSTR( delimited_string, start_idx )
+       ELSE SUBSTR( delimited_string, start_idx, end_idx - start_idx )
+       END AS finalval
+FROM   bounds;
+
+
+-- shorter connect by example
+with test(MY_STRING) as (
+  select 'ASDIRECT;;;460000000736.280416114515;1225,12;28.04.2016;1147;VC;PBZ;00;1;457418******3009;030084;' from dual
+) 
+select regexp_substr(MY_STRING, '([^;]*)(;|$)', 1, level, 'i', 1) SPLIT 
+from test 
+connect by level <= regexp_count(MY_STRING, ';') + 1
+
+
+--Using a Pipelined Function
+An alternative to a standard PL/SQL function (from 9i onwards) is the use of pipelined functions.
+SQL> CREATE TYPE test_type AS TABLE OF VARCHAR2(100);
+  2  /
+
+Type created.
+
+SQL> CREATE OR REPLACE FUNCTION f_convert2(p_list IN VARCHAR2)
+  2    RETURN test_type
+  3  PIPELINED
+  4  AS
+  5    l_string       LONG := p_list || ',';
+  6    l_comma_index  PLS_INTEGER;
+  7    l_index        PLS_INTEGER := 1;
+  8  BEGIN
+  9    LOOP
+ 10      l_comma_index := INSTR(l_string, ',', l_index);
+ 11      EXIT WHEN l_comma_index = 0;
+ 12      PIPE ROW ( SUBSTR(l_string, l_index, l_comma_index - l_index) );
+ 13      l_index := l_comma_index + 1;
+ 14    END LOOP;
+ 15    RETURN;
+ 16  END f_convert2;
+ 17  /
+
+Function created.
+
+SQL> SELECT * FROM TABLE(f_convert('AAA,BBB,CCC,D'));
+
+COLUMN_VALUE
+--------------------------------------------------------------------------------
+AAA
+BBB
+CCC
+D
+
+4 rows selected.
+
+
+
+-- another test
+drop table comma_test;
+create table comma_test (id number, value varchar2(10));
+insert into comma_test values (1,'A,B');
+insert into comma_test values (2,'C,D,E');
+commit;
+select * from comma_test;
+
+select id, f_convert2(value)
+from comma_test;
+
+select *
+from comma_test c
+  ,table(select f_convert2(c.value) b from dual) f
+/
+
+ID	VALUE	COLUMN_VALUE
+1	A,B	A
+1	A,B	B
+2	C,D,E	C
+2	C,D,E	D
+2	C,D,E	E
+
+
+-- one way to get the output in order?
+select *
+from comma_test c
+  ,lateral(select column_value x, rownum ccc from table(select f_convert2(c.value) b from dual)) f
+/
+-- The PIPE ROW behavior most likely matches the implementation behavior to the desired logical behavior.
+-- but that's not safe. 
+
+-- so should probably convert the type to an object type with something like id or order_num etc.
+-- a la https://oracle-base.com/articles/misc/pipelined-table-functions
+
+
+-- another example of delimiting strings, this time with sql macros
+-- https://blogs.oracle.com/sql/post/split-comma-separated-values-into-rows-in-oracle-database

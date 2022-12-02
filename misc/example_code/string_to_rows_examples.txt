@@ -1,0 +1,31 @@
+-- an example --
+select regexp_substr('SMITH,ALLEN,WARD,JONES','[^,]+', 1, level) from dual
+connect by regexp_substr('SMITH,ALLEN,WARD,JONES', '[^,]+', 1, level) is not null;
+
+
+REGEXP_SUBSTR('SMITH,A
+----------------------
+SMITH
+ALLEN
+WARD
+JONES
+
+-- an example --
+with t as (select 'abcd,123,defoifcd,87765' as str from dual)
+select level as n, regexp_substr(str,'[^,]+',1,level) as val
+from   t
+connect by regexp_substr(str,'[^,]+',1,level) is not null
+
+ N VAL
+-- -----------------------
+ 1 abcd
+ 2 123
+ 3 defoifcd
+ 4 87765
+
+-- an example -- 
+with t as (select 'abcd' as str from dual)
+select level as n, substr(str,level,1) as val
+from   t
+connect by substr(str,level,1) is not null
+/

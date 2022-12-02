@@ -1,0 +1,322 @@
+https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet#emphasis
+
+-- don't know why these are not working correctly
+-- wait, maybe a bug in the version I ran it on? seems to work okay with Oracle Live Sql...
+
+-- so this is working as an answer to the example
+with t (r0,r1,r2,r3,r4,r5,r6,r7,r8,sumall,lvl) as (
+    select
+--      0 r0, 1 r1, 1 r2, 2 r3, 1 r4, 0 r5, 0 r6, 0 r7, 0 r8
+      0 r0, 1 r1, 1 r2, 2 r3, 1 r4, 0 r5, 0 r6, 0 r7, 0 r8, 1+1+2+1 sumall
+      , 0 lvl
+    from dual
+    union all
+    select
+	  r1, r2, r3, r4, r5, r6, r7+r0, r8, r0
+	, r1+r2+r3+r4+r5+r6+r7+r0+r8+r0
+	, lvl+1
+    from t
+    where lvl < 100
+)
+select * from t
+where lvl = 80
+/
+
+
+-- it looks like a problem with how the view is defining the column types
+create or replace view t_v as
+with t (r0,r1,r2,r3,lvl) as (
+    select
+      '0' r0, '1' r1, '2' r2, '3' r3
+      , 1 lvl
+    from dual
+    union all
+    select
+	  r1, r0||r2, r3, r0
+			, lvl+1
+    from t
+    where lvl < 10
+)
+select * from t
+/
+desc t_v
+Name	NotNull	Type
+R0		VARCHAR2(2000)
+R1		VARCHAR2(2000)
+R2		CHAR(1)
+R3		VARCHAR2(2000)
+LVL		NUMBER
+
+However, behind the scenes it is still carrying over the correct values:
+R0	R1	R2	R3	LVL
+0	1	2	3	1
+1	02	3	0	2
+02	13	0	1	3
+13	020	1	02	4
+020	131	0	13	5
+131	02002	1	020	6
+02002	13113	0	131	7
+13113	02002020	1	02002	8
+02002020	13113131	0	13113	9
+13113131	0200202002002	1	02002020	10
+
+R3 02 -> R2 0 -> R1 ...02
+
+Now, create a table with defined types and it goes much better:
+drop table t_source;
+create table t_source (r0 varchar2(2000), r1 varchar2(2000), r2 varchar2(2000), r3 varchar2(2000));
+insert into t_source values('0','1','2','3');
+commit;
+select * from t_source;
+desc t_source;
+
+with t (r0,r1,r2,r3,lvl) as (
+    select
+      r0, r1, r2, r3
+      , 1 lvl
+    from t_source
+    union all
+    select
+	  r1, r0||r2, r3, r0
+			, lvl+1
+    from t
+    where lvl < 10
+)
+select * from t
+/
+
+R0	R1	R2	R3	LVL
+0	1	2	3	1
+1	02	3	0	2
+02	13	0	1	3
+13	020	1	02	4
+020	131	02	13	5
+131	02002	13	020	6
+02002	13113	020	131	7
+13113	02002020	131	02002	8
+02002020	13113131	02002	13113	9
+13113131	0200202002002	13113	02002020	10
+
+
+-- but that's not _exactly_ it
+-- this view gets the right types
+create or replace view t_v as
+with t (r0,r1,r2,r3,r4,r5,r6,r7,r8,totfish,theday) as (
+    select
+      0 r0, 1 r1, 1 r2, 2 r3, 1 r4, 0 r5, 0 r6, 0 r7, 0 r8
+      , 5 totfish
+      , 0 theday
+    from dual
+    union all
+    select
+	  r1, r2, r3, r4, r5, r6, r7, r8, r0
+	, r1+r2+r3+r4+r5+r6+r7+r0+r8+r0
+	, theday+1
+    from t
+    where theday <= 100
+)
+select * from t
+--where theday = 80
+/
+desc t_v
+Name	NotNull	Type
+R0		NUMBER
+R1		NUMBER
+R2		NUMBER
+R3		NUMBER
+R4		NUMBER
+R5		NUMBER
+R6		NUMBER
+R7		NUMBER
+R8		NUMBER
+TOTFISH		NUMBER
+THEDAY		NUMBER
+
+-- but something wrong still happens
+select r4,r5 from t_v;
+R4	R5
+1	0
+0	0
+0	0
+0	0
+0	0
+0	#Data Error: OCI-22065: number to text translation for the given format causes overflow#
+1	#Data Error: OCI-22065: number to text translation for the given format causes overflow#
+1	#Data Error: OCI-22065: number to text translation for the given format causes overflow#
+2	#Data Error: OCI-22065: number to text translation for the given format causes overflow#
+1	0
+0	0
+
+
+-- creating a table, though, fixes things
+drop table t_source;
+create table t_source(r0 number, r1 number, r2 number, r3 number, r4 number, r5 number, r6 number, r7 number, r8 number);
+insert into t_source values (0,1,1,2,1,0,0,0,0);
+commit;
+select * from t_source;
+desc t_source
+
+with t (r0,r1,r2,r3,r4,r5,r6,r7,r8,totfish,theday) as (
+    select
+      r0, r1, r2, r3, r4, r5, r6, r7, r8
+      , r1+r2+r3+r4+r5+r6+r7+r8+r0
+      , 0 theday
+    from t_source
+    union all
+    select
+	  r1, r2, r3, r4, r5, r6, r7+r0, r8, r0
+	, r1+r2+r3+r4+r5+r6+r7+r0+r8+r0
+	, theday+1
+    from t
+    where theday <= 100
+)
+select * from t
+--where theday = 80
+/
+R0	R1	R2	R3	R4	R5	R6	R7	R8	TOTFISH	THEDAY
+14	10	16	11	10	12	8	7	5	93	33
+10	16	11	10	12	8	21	5	14	107	34
+16	11	10	12	8	21	15	14	10	117	35
+11	10	12	8	21	15	30	10	16	133	36
+10	12	8	21	15	30	21	16	11	144	37
+12	8	21	15	30	21	26	11	10	154	38
+
+-- no OCI errors in sight.
+
+-- I wish I know exactly what was going on. As it is I just have to keep an eye out for the behavior.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+with t (r0,r1,r2,r3,r4,r5,r6,r7,r8,lvl) as (
+    select
+--      0 r0, 1 r1, 1 r2, 2 r3, 1 r4, 0 r5, 0 r6, 0 r7, 0 r8
+      0 r0, 1 r1, 1 r2, 2 r3, 1 r4, 0 r5, 0 r6, 0 r7, 0 r8
+      , 1 lvl
+    from dual
+    union all
+    select
+	  r1 r0, r2 r1, r3 r2, r4 r3, r5 r4, r6 r5, r7 r6, r8 r7, r0 r8
+			, lvl+1
+    from t
+    where lvl < 10
+)
+select * from t
+/
+
+with t (r0,r1,r2,r3,r4,r5,lvl) as (
+    select
+      0 r0, 1 r1, 1 r2, 2 r3, 1 r4, 0 r5
+      , 1 lvl
+    from dual
+    union all
+    select
+	  r1, r2+r0, r3, r4, r5, r0
+			, lvl+1
+    from t
+    where lvl < 100
+)
+select * from t
+/
+
+
+with t (r0,r1,r2,r3,lvl) as (
+    select
+      0 r0, 1 r1, 1 r2, 2 r3
+      , 1 lvl
+    from dual
+    union all
+    select
+	  r1, r2+r0, r3, r0
+			, lvl+1
+    from t
+    where lvl < 100
+)
+select * from t
+/
+
+
+with t (r0,r1,lvl) as (
+    select
+      0 r0, 1 r1
+      , 1 lvl
+    from dual
+    union all
+    select
+	  r1, r0+r1
+			, lvl+1
+    from t
+    where lvl < 100
+)
+select * from t
+/
+
+
+
+
+
+
+
+
+with t (r0,r1,r2,r3,lvl) as (
+    select
+      '0' r0, '1' r1, '2' r2, '3' r3
+      , 1 lvl
+    from dual
+    union all
+    select
+	  r1, r0||r2, r3, r0
+			, lvl+1
+    from t
+    where lvl < 10
+)
+--search breadth first by r0 set order1
+select * from t
+/
+select * from table(dbms_xplan.display_cursor());
+
+-- notice how R2 isn't taking the R3 value?
+R0	R1	R2	R3	LVL
+0	1	2	3	1
+1	02	3	0	2
+02	13	0	1	3
+13	020	1	02	4
+020	131	0	13	5
+131	02002	1	020	6
+02002	13113	0	131	7
+13113	02002020	1	02002	8
+02002020	13113131	0	13113	9
+13113131	0200202002002	1	02002020	10
+
+
+
+
+with t (r0,r1,r2,r3,lvl) as (
+    select
+      '0' r0, '1' r1, '2' r2, '3' r3
+      , 1 lvl
+    from dual
+    union all
+    select
+	  r0||r1, r2, r3, r0
+			, lvl+1
+    from t
+    where lvl < 10
+)
+select * from t
+/

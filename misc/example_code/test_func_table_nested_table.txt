@@ -1,0 +1,232 @@
+with t (gno, pp_elements, full_passport, levels) as (
+            select lineno gno, regexp_substr(full_passport,'[^ ]+',1,1)           , full_passport    , 1        from day04_part1_passport_lines
+  union all select gno    , regexp_substr(full_passport,'[^ ]+',1,levels+1), full_passport, levels+1 from t
+              where regexp_substr(full_passport,'[^ ]+',1,levels+1) is not null
+  )
+select gno, pp_elements
+from t;
+
+
+select * from user_types;
+
+create or replace function a_varchar2table(a varchar2) return varchar2_tbl as
+  l_vtab varchar2_tbl := varchar2_tbl();
+begin
+  l_vtab.extend;
+  l_vtab(1):=a;
+  return l_vtab;
+end;
+/
+select * from table (a_varchar2table('b'));
+
+create or replace function a_varchar2table(a varchar2) return varchar2_tbl as
+  l_vtab varchar2_tbl := varchar2_tbl();
+begin
+  for i in 1 .. length(a) loop
+    l_vtab.extend;
+    l_vtab(i):=substr(a,i,1);
+  end loop;
+  return l_vtab;
+end;
+/
+select * from table (a_varchar2table('bcd'));
+
+
+select 'boo:jam' from dual;
+--boo:jam
+select instr('boo:jam',':') from dual;
+--4
+select substr('boo:jam',1,4) from dual;
+--boo:
+select substr('boo:jam',1,4-1) from dual;
+--boo
+select substr('boo:jam',4) from dual;
+--:jam
+select substr('boo:jam',4+1) from dual;
+--jam
+select instr('jam',':') from dual;
+--0
+
+
+
+create or replace function string2rows (p_string varchar2, p_delimiter varchar2) return varchar2_tbl as
+  l_vtab varchar2_tbl := varchar2_tbl();
+  i number;
+begin
+  l_vtab.extend;
+  i:= instr(p_string,p_delimiter);
+  if i = 0 then
+    l_vtab(1):=p_string;
+  else
+    l_vtab(1):=substr(p_string,1,i-1);
+    l_vtab := l_vtab multiset union all string2rows(substr(p_string,i+1),p_delimiter);
+  end if;
+  return l_vtab;
+end;
+/
+select * from table (string2rows('boo:jam','%'));
+-- boo:jam
+select * from table (string2rows('boo:jam',':'));
+-- boo
+-- jam
+select * from table (string2rows('boo:jam',''));
+select * from table (string2rows('boo:jam',null));
+select * from table (string2rows('',':'));
+select * from table (string2rows(null,':'));
+select * from table (string2rows(null,null));
+-- error
+
+
+
+
+select instr('boo:jam','') from dual;
+select instr('boo:jam',null) from dual;
+--(null)
+select instr(null,':') from dual;
+--(null)
+select instr(null,null) from dual;
+--(null)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+create or replace type varchar2_tbl as table of varchar2(4000);
+
+-- test
+select * from table (string2rows(null,null));
+select * from table (string2rows('a',null));
+select * from table (string2rows('ab',null));
+select count(*) from table (string2rows('a',null));
+select count(*) from table (string2rows('ab',null));
+
+select * from table (string2rows('boo:jam','%'));
+select * from table (string2rows('boo:jam',':'));
+select * from table (string2rows('boo:jam:',':'));
+select * from table (string2rows('boo::jam:',':'));
+
+
+-- this works, splitting them up into two 
+-- warning, is this going to be a problem with row order? Do I need to force row_number or rownum or some such?
+create or replace function string2rows2 (p_string varchar2) return varchar2_tbl as
+  l_vtab varchar2_tbl := varchar2_tbl();
+  i number;
+begin
+
+--dbms_output.put_line('p_string='||nvl(p_string,'nan')||', p_del='||nvl(p_delimiter,'nan'));
+
+  if p_string is null then
+    return null;
+  end if;
+
+  l_vtab:=string2rows2(substr(p_string,2));
+  if l_vtab is null then
+    return varchar2_tbl(substr(p_string,1,1));
+  else
+    return varchar2_tbl(substr(p_string,1,1))
+    multiset union all
+    string2rows2(substr(p_string,2));
+  end if;
+end;
+/
+
+create or replace function string2rows (p_string varchar2, p_delimiter varchar2 default null) return varchar2_tbl as
+  l_vtab varchar2_tbl := varchar2_tbl();
+  i number;
+begin
+
+dbms_output.put_line('p_string='||nvl(p_string,'nan')||', p_del='||nvl(p_delimiter,'nan'));
+
+  if p_string is null then
+    return null;
+  end if;
+
+  if p_delimiter is null then
+    return string2rows2(p_string);
+  end if;
+
+  i:= instr(p_string,p_delimiter);
+
+  if i = 0 then
+    return varchar2_tbl(p_string);
+  else
+    return varchar2_tbl(substr(p_string,1,i-1)) 
+      multiset union all
+      nvl(string2rows(substr(p_string,i+1),p_delimiter),varchar2_tbl(null));
+  end if;
+end;
+/
+
+-- example
+select d.*, e.*
+from day17_data d, string2rows(d.xline) e
+where d.lineno in (1,3);
+/*
+1	###..#..	#
+1	###..#..	#
+1	###..#..	#
+1	###..#..	.
+1	###..#..	.
+1	###..#..	#
+1	###..#..	.
+1	###..#..	.
+3	#####...	#
+3	#####...	#
+3	#####...	#
+3	#####...	#
+3	#####...	#
+3	#####...	.
+3	#####...	.
+3	#####...	.
+*/
+-- notice they come out in order; can I rely on it?
+-- do I need to make a specific string2orderedrows function?
+
+-- not guarenteed to return in order...
+select 
+  d.lineno
+  , d.xline
+--  , row_number () over (partition by d.lineno order by d.lineno)
+  , row_number () over (partition by d.lineno order by rownum) rn
+  , e.column_value
+from day17_data d, string2rows(d.xline) e
+where d.lineno in (1,3);
+/*
+1	###..#..	1	#
+1	###..#..	2	#
+1	###..#..	3	#
+1	###..#..	4	.
+1	###..#..	5	.
+1	###..#..	6	#
+1	###..#..	7	.
+1	###..#..	8	.
+3	#####...	1	#
+3	#####...	2	#
+3	#####...	3	#
+3	#####...	4	#
+3	#####...	5	#
+3	#####...	6	.
+3	#####...	7	.
+3	#####...	8	.
+*/
+
+create or replace type varchar2_varr as table of varchar2(4000);
+select * from table ( varchar2_varr('a','b'));
+-- will come out in order, I believe
+

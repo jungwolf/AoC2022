@@ -1,0 +1,52 @@
+with 
+  FUNCTION get_token(
+     p_input_string IN VARCHAR2,            -- input string
+     p_token_number IN PLS_INTEGER,         -- token number
+     p_delimiter    IN VARCHAR2 DEFAULT ',' -- separator character
+    )
+      RETURN VARCHAR2
+    IS
+      l_temp_string VARCHAR2(500) := p_delimiter || p_input_string ;
+      l_pos1 number ;
+      l_pos2 number ;
+    BEGIN
+      l_pos1     := INSTR( l_temp_string, p_delimiter, 1, p_token_number ) ;
+      IF l_pos1   > 0
+      THEN
+        l_pos2   := INSTR( l_temp_string, p_delimiter, 1, p_token_number + 1) ;
+        IF l_pos2 = 0
+        THEN
+          l_pos2 := LENGTH( l_temp_string ) + 1 ;
+        END IF ;
+        RETURN( SUBSTR( l_temp_string, l_pos1+1, l_pos2 - l_pos1-1 ) ) ;
+      ELSE
+        RETURN NULL ;
+      END IF ;
+  END get_token;
+  function string_tokenizer( p_string in varchar2, p_token in varchar2 default ',')
+  return   string_table
+  is
+    l_token   VARCHAR2(50) ;
+    i           PLS_INTEGER := 1 ;  
+    l_tokens  string_table := string_table();
+  BEGIN
+    LOOP
+       l_token := get_token( p_string, i , ',') ;
+       EXIT WHEN l_token IS NULL ;
+       l_tokens.extend;
+       l_tokens(l_tokens.last) := l_token;
+       i := i + 1 ;
+    END LOOP ;
+    return l_tokens;
+  end string_tokenizer;
+tag_filter as
+( select 'recent,comeback,early' selected_tags
+  from   dual
+)
+, filter_tags as
+( select string_tokenizer(selected_tags, ',') filter_tag
+  from   tag_filter
+)   
+select column_value tag
+from   table( (select filter_tag from filter_tags))
+/

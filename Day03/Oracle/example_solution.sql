@@ -229,3 +229,23 @@ where container_id = 0
 	where container_id = 1
   )
 /
+
+-- hmm, find priority values
+select ascii('A') from dual;
+--65
+select ascii('a') "a",ascii('z') "z",ascii('A') "A",ascii('Z') "Z" from dual;
+--a	z	A	Z
+--97	122	65	90
+select case when 'C' > 'Z' then ascii('C') - ascii('a') else ascii('C') - ascii('A') end
+from dual;
+
+-- oh so ugly
+-- for off-by-1, could be case...end + 1, but that seems more error prone
+with test_char as (select 'C' testvalue from dual)
+select 
+  case when lower(testvalue) = testvalue
+    then ascii(testvalue) - ascii('a') + 1
+    else ascii(testvalue) - ascii('A') + 1 + 26
+  end
+from dual, test_char;
+

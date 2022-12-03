@@ -139,3 +139,93 @@ select r.rucksack_id, trunc((i.item_id-1)/r.container_size) container_id, i.item
 from rucksacks r
   ,lateral(select rownum item_id, column_value item_type from table(string2rows(r.rucksack_contents))) i;
 /
+/*
+RUCKSACK_ID	CONTAINER_ID	ITEM_TYPE
+1	0	v
+1	0	J
+1	0	r
+1	0	w
+1	0	p
+1	0	W
+1	0	t
+1	0	w
+1	0	J
+1	0	g
+1	0	W
+1	0	r
+1	1	h
+1	1	c
+1	1	s
+1	1	F
+1	1	M
+1	1	M
+1	1	f
+1	1	F
+1	1	F
+...
+*/
+
+-- huh. intersect works on the values for all the columns. can you do complex sql in the lateral clause?
+-- never mind. onward!
+
+-- validate new form
+with rucksacks as (
+    select
+      lineno rucksack_id
+      , linevalue rucksack_contents
+      , length(linevalue)/2 container_size
+    from input_data
+  )
+, items as (
+    select r.rucksack_id, trunc((i.item_id-1)/r.container_size) container_id, i.item_type
+    from rucksacks r
+      ,lateral(select rownum item_id, column_value item_type from table(string2rows(r.rucksack_contents))) i
+  )
+select * from items
+/
+
+-- so, what item_types in container_id 0 exist in container_id 1?
+with rucksacks as (
+    select
+      lineno rucksack_id
+      , linevalue rucksack_contents
+      , length(linevalue)/2 container_size
+    from input_data
+  )
+, items as (
+    select r.rucksack_id, trunc((i.item_id-1)/r.container_size) container_id, i.item_type
+    from rucksacks r
+      ,lateral(select rownum item_id, column_value item_type from table(string2rows(r.rucksack_contents))) i
+  )
+select * 
+from items
+where container_id = 0
+  and (rucksack_id, item_type) not in (
+    select rucksack_id, item_type
+	from items
+	where container_id = 1
+  )
+/
+
+-- remove dups
+with rucksacks as (
+    select
+      lineno rucksack_id
+      , linevalue rucksack_contents
+      , length(linevalue)/2 container_size
+    from input_data
+  )
+, items as (
+    select r.rucksack_id, trunc((i.item_id-1)/r.container_size) container_id, i.item_type
+    from rucksacks r
+      ,lateral(select rownum item_id, column_value item_type from table(string2rows(r.rucksack_contents))) i
+  )
+select unique rucksack_id, container_id, item_type
+from items
+where container_id = 0
+  and (rucksack_id, item_type) not in (
+    select rucksack_id, item_type
+	from items
+	where container_id = 1
+  )
+/

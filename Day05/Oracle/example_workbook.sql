@@ -110,3 +110,40 @@ with stacks as (
 select * from stacks, moves;
 
 -- one idea is to use a recursive sql to return the state after the effects of each move
+-- hmm, let's say the stack top is on the left. everything happens with position 1
+
+-- first, do the pop
+with stacks as (
+  select 1 s, 'AB' payload from dual
+  union all select 2, 'CD' from dual
+)
+, moves as (
+  select 1 fm, 2 tt from dual
+)
+select s.s, s.payload, m.fm, m.tt
+  , case
+      when s.s = m.fm
+        then substr(s.payload,2)
+      else s.payload
+    end new_payload
+from stacks s, moves m;
+
+-- but what about the push?
+with stacks as (
+  select 1 s, 'AB' payload from dual
+  union all select 2, 'CD' from dual
+)
+, moves as (
+  select 1 fm, 2 tt from dual
+)
+select s.s, s.payload, m.fm, m.tt
+  , case
+      when s.s = m.fm
+        then substr(s.payload,2)
+      when s.s = m.tt
+        then (select substr(x.payload,1,1) from stacks x where x.s = m.fm) || s.payload
+      else s.payload
+    end new_payload
+from stacks s, moves m;
+
+-- okay, but now what?

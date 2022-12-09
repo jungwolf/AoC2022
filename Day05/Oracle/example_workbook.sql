@@ -227,3 +227,34 @@ select * from stacks_at_move;
 
 -- ORA-32042: recursive WITH clause must reference itself directly in one of the UNION ALL branches
 -- or maybe not
+
+-- didn't like using a with clause to get around referencing the view twice...
+--ORA-32034: unsupported use of WITH clause
+with moves as (
+  select 1 move, 1 fm, 2 tt from dual
+  union all select 2, 2, 1 from dual
+)
+, stacks as (
+  select 1 s, 'AB' payload from dual
+  union all select 2, 'CD' from dual
+)
+, stacks_at_move (move, stack, payload, new_payload) as (
+    select 0 move, s.s stack, s.payload, null new_payload
+    from stacks s
+
+    union all
+
+    with x as (select m.move, s1.stack ,s1.new_payload from stacks_at_move)
+    select m.move, x.stack ,x.new_payload
+      ,case
+        when x.stack = m.fm
+          then substr(x.payload,2)
+        when x.stack = m.tt
+          then (select substr(y.payload,1,1) from x y where y.stack = m.fm) || x.payload
+        else x.payload
+      end new_payload
+    from moves m, x
+    where m.move = x.move+1
+
+)
+select * from stacks_at_move;

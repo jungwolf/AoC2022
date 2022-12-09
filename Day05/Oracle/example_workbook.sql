@@ -147,3 +147,83 @@ select s.s, s.payload, m.fm, m.tt
 from stacks s, moves m;
 
 -- okay, but now what?
+with moves as (
+  select 1 move, 1 fm, 2 tt from dual
+  union all select 2, 2, 1 from dual
+)
+, stacks as (
+  select 1 s, 'AB' payload from dual
+  union all select 2, 'CD' from dual
+)
+select * from moves, stacks;
+
+-- so basic recursion something...
+with moves as (
+  select 1 move, 1 fm, 2 tt from dual
+  union all select 2, 2, 1 from dual
+)
+, stacks as (
+  select 1 s, 'AB' payload from dual
+  union all select 2, 'CD' from dual
+)
+, stacks_at_move (move, stack, payload, new_payload) as (
+    select 0 move, s.s stack, s.payload, null new_payload
+    from stacks s
+    union all
+    select 0,0,'a','a' from dual where 0=1
+)
+select * from stacks_at_move;
+
+-- put some logic in it...
+with moves as (
+  select 1 move, 1 fm, 2 tt from dual
+  union all select 2, 2, 1 from dual
+)
+, stacks as (
+  select 1 s, 'AB' payload from dual
+  union all select 2, 'CD' from dual
+)
+, stacks_at_move (move, stack, payload, new_payload) as (
+    select 0 move, s.s stack, s.payload, null new_payload
+    from stacks s
+    union all
+    select m.move, s1.stack ,s1.new_payload
+      , case when 1=1 then 'a' else 'b' end
+    from moves m, stacks_at_move s1
+    where m.move = s1.move+1
+
+)
+select * from stacks_at_move;
+
+
+-- um, this might do it?
+with moves as (
+  select 1 move, 1 fm, 2 tt from dual
+  union all select 2, 2, 1 from dual
+)
+, stacks as (
+  select 1 s, 'AB' payload from dual
+  union all select 2, 'CD' from dual
+)
+, stacks_at_move (move, stack, payload, new_payload) as (
+    select 0 move, s.s stack, s.payload, null new_payload
+    from stacks s
+
+    union all
+
+    select m.move, s1.stack ,s1.new_payload
+      ,case
+        when s1.stack = m.fm
+          then substr(s1.payload,2)
+        when s1.stack = m.tt
+          then (select substr(x.payload,1,1) from stacks_at_move x where x.stack = m.fm) || s1.payload
+        else s1.payload
+      end new_payload
+    from moves m, stacks_at_move s1
+    where m.move = s1.move+1
+
+)
+select * from stacks_at_move;
+
+-- ORA-32042: recursive WITH clause must reference itself directly in one of the UNION ALL branches
+-- or maybe not

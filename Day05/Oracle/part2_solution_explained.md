@@ -54,7 +54,9 @@ with group0 as (
 The `nvl2()` let's me assign number 1 to a null line and 0 to not null. From there, `sum() over (order by lineno)` has a row sum up the number of null lines before it.
 
 Three notes:
-- I made two views because in the workbook I consentrated on one section at a time. 
+- I made two views because in the workbook I consentrated on one section at a time. On a rewrite I'd probably do `groups(lineno,linevalue,groupnum)` and filter the group in the next sections.
+- Some flavors of sql have a filter clause in the analytic function syntax, allowing it to ignore lines. In that case, `count(*) filter (linevalue is not null) over ()` might be easier to read the intent. Oracle doesn't have it.
+- I used an in-line view because analytic functions are evaluated last, even after `having`. They can only appear in a select or order clause.
 ```sql
 , elements as (
 select g.lineno, g.linevalue, i.pos, i.column_value
@@ -62,6 +64,12 @@ from group0 g
   , lateral(select rownum pos, column_value from table(string2rows(linevalue))) i
 where column_value not in (' ','[',']')
 )
+```
+Let's break it down a little.
+- A regular join is (table) to (table), a lateral join is (table row) to (table). 
+`string2rows()` is a function I wrote to split strings into rows. 
+
+
 , pivoted as (
 select listagg(column_value) within group (order by lineno) almoststack
 from elements

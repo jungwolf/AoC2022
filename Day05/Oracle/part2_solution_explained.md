@@ -66,20 +66,65 @@ where column_value not in (' ','[',']')
 )
 ```
 Let's break it down a little.
-- A regular join is (table) to (table), a lateral join is (table row) to (table). 
-`string2rows()` is a function I wrote to split strings into rows. 
+- `string2rows()` is a function I wrote to split strings into rows, by default every character is a new row. Big caveat, the output is actually a custom **datatype**, `table of varchar2`. Functions can return only a single object.
+- But sql has `table()`, allowing you to treat collection datatypes as a row source. It has a single column, by default named column_value. The order of the rows returned is deterministic-- not going into the particulars.
+
+Quick example:
+```sql
+select rownum pos, column_value 
+from table(string2rows('abc'))
+```
+Results in
+|pos|column_value|
+|---|---|
+|1|a|
+|2|b|
+|3|c|
 
 
+- A regular join is (table1) to (table2). A lateral join is (table1) to (table1 row,table2), which is to say a correlated join. The `lateral()` in-line view can reference the columns of the parent table and get the value for the matched row.
+
+So, every row in group0 becomes multiple rows, one for each character in linevalue. Another example:
+
+|lineno|linevalue|
+|---|---|
+|3|ZMP|
+|4|123|
+
+Becomes:
+
+|lineno|linevalue|pos|column_value|
+|---|---|---|---|
+|3|ZMP|1|Z|
+|3|ZMP|2|M|
+|3|ZMP|3|P|
+|4|123|1|1|
+|5|123|2|2|
+|6|123|3|3|
+
+ In practice, linevalue is displayed for debugging only.
+ 
+ Finally, filter out any column values that are not useful.
+
+```sql
 , pivoted as (
 select listagg(column_value) within group (order by lineno) almoststack
 from elements
 group by pos
 )
+```
+Flip it all on the diagonal. Group by character position, order by line number. We're left with rows like 'Z1' and 'P3'. The original input format means the `order by lineno` put the top of the stacks at position 1 and the number of the stack at the end. Almost there!
+
+```sql
 , stacks as (
 select to_number(REGEXP_SUBSTR(almoststack,'\d+')) stack
 , REGEXP_SUBSTR(almoststack,'\D+') payload
 from pivoted
 )
+```
+Parse out the number from the characters. Now we have stacks, with numbers.
+
+```
 , moves as (
     select
       row_number() over (order by lineno) move
@@ -88,6 +133,13 @@ from pivoted
       ,to_number(REGEXP_SUBSTR(linevalue,'\d+',1,3)) tt
     from group1
 )
+```
+`row_number()` restarts the numbering at 1. Handy for the recursive CTE. The move text is always in the same order, so just grab the first, second, and third numbers.
+
+Note for future: Oracle regex is limited. Searching for a pattern and then returning the next pattern isn't support. For example, searching for 'from' then selecting the next number. I suspect it'll be ugly.
+
+
+```
 , stack_states (stack, payload, move, ct, fm, tt, new_payload) as (
   select s.stack, s.payload, 0,0,0,0,s.payload
   from stacks s
@@ -99,17 +151,16 @@ from pivoted
         when ss.stack = m.fm
           then substr(ss.new_payload,m.ct+1)
         when ss.stack = m.tt and ss.stack > m.fm
---          then lag(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack) || ss.new_payload
+(order by ss.stack) || ss.new_payload
           then substr(lag(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack),1,m.ct) || ss.new_payload
         when ss.stack = m.tt and ss.stack < m.fm
---          then lead(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack) || ss.new_payload
+(order by ss.stack) || ss.new_payload
           then substr(lead(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack),1,m.ct) || ss.new_payload
         else ss.new_payload
       end new_payload
   from stack_states ss, moves m
   where ss.move+1=m.move
 )
---select * from stack_states
 select listagg(substr(new_payload,1,1)) within group (order by stack)
 from stack_states
 group by move

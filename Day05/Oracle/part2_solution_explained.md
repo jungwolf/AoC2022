@@ -124,7 +124,7 @@ from pivoted
 ```
 Parse out the number from the characters. Now we have stacks, with numbers.
 
-```
+```sql
 , moves as (
     select
       row_number() over (order by lineno) move
@@ -139,7 +139,7 @@ Parse out the number from the characters. Now we have stacks, with numbers.
 Note for future: Oracle regex is limited. Searching for a pattern and then returning the next pattern isn't support. For example, searching for 'from' then selecting the next number. I suspect it'll be ugly.
 
 
-```
+```sql
 , stack_states (stack, payload, move, ct, fm, tt, new_payload) as (
   select s.stack, s.payload, 0,0,0,0,s.payload
   from stacks s
@@ -151,16 +151,100 @@ Note for future: Oracle regex is limited. Searching for a pattern and then retur
         when ss.stack = m.fm
           then substr(ss.new_payload,m.ct+1)
         when ss.stack = m.tt and ss.stack > m.fm
-(order by ss.stack) || ss.new_payload
           then substr(lag(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack),1,m.ct) || ss.new_payload
         when ss.stack = m.tt and ss.stack < m.fm
-(order by ss.stack) || ss.new_payload
           then substr(lead(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack),1,m.ct) || ss.new_payload
         else ss.new_payload
       end new_payload
   from stack_states ss, moves m
   where ss.move+1=m.move
 )
+```
+As a reminder, a recursive CTE has an anchor member and a recursive member. The anchor member generates the first set of rows. The recursive member uses the first set to generate the next set. That set is used to generate the next set. Etc. The current call to the recursive member cannot reference rows from previous sets. In particular, analytic functions are limited to the current set of rows.
+
+I'm treating the CTE as a state machine. I need to keep track of the stacks and the move number. The moves themselves is a static list, so I'll join to it instead of trying to pass a "move state".
+
+I displayed the move details for debugging, they are not needed. I'll ignore them and remove from the code below...
+
+```sql
+, stack_states (stack, payload, move) as (
+  select s.stack, s.payload, 0
+  from stacks s
+```
+Simple anchor. Rows of stacks and their content, with a new "move" column indicating they are generated at move 0.
+
+For the next step, I need to join to the next move. The previous move was ss.move, so I need move+1. Easy enough.
+```sql
+  from stack_states ss, moves m
+  where ss.move+1=m.move
+```
+The output is going to be the stacks, their modified payloads, and the move applied. The case statement does all the work.
+```sql
+  select ss.stack
+    , case
+...
+      end payload
+    , m.move
+```
+Let's get into it.
+- fm = move crates from this stack
+- tt = move crates to this stack
+- ct = move this number of crates
+- lag() and lead(), used to look up column values from other rows
+```sql
+    , case
+        when ss.stack = m.fm
+        when ss.stack = m.tt and ss.stack > m.fm
+        when ss.stack = m.tt and ss.stack < m.fm
+        else ss.payload
+      end payload
+```
+Check the stack number. If it is part of the move (fm or tt), do something, otherwise ignore it. The two `when` tests for ``ss.stack = m.tt`` are there because lag()/lead() only take positive numbers. They do the same thing but in opposite directions. 
+```sql
+        when ss.stack = m.fm
+          then substr(ss.new_payload,m.ct+1)
+```
+We're removing the first "ct" crates, so take the substring starting at "ct" plus one.
+```sql
+        when ss.stack = m.tt and ss.stack > m.fm
+          then substr(lag(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack),1,m.ct) || ss.new_payload
+```
+If ss.stack > m.fm, then the crates are coming from a row **before** this one. We can access that row using lag.
+```sql
+abs(ss.stack-m.fm)
+lag(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack)
+substr(...,1,m.ct)
+... || ss.new_payload
+```
+The absolute value function abs() keeps the value positive. Lag() only takes positive values, throwing an error otherwise. Oracle is evaluating it even though the when clause (ss.stack>m.fm) should prevent it from every getting called with a negative value.
+
+........................Result lag() lets us access other rows, but those rows but we need to tell it in what order.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
 select listagg(substr(new_payload,1,1)) within group (order by stack)
 from stack_states
 group by move

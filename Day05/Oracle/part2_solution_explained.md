@@ -173,7 +173,7 @@ I displayed the move details for debugging, they are not needed. I'll ignore the
 ```
 Simple anchor. Rows of stacks and their content, with a new "move" column indicating they are generated at move 0.
 
-For the next step, I need to join to the next move. The previous move was ss.move, so I need move+1. Easy enough.
+For the next step, I need to join to the next move. The previous move was ss.move, so I need move+1. Easy enough. When there are no more moves to join, the join returns 0 rows, and the recursive member is done.
 ```sql
   from stack_states ss, moves m
   where ss.move+1=m.move
@@ -209,41 +209,18 @@ We're removing the first "ct" crates, so take the substring starting at "ct" plu
         when ss.stack = m.tt and ss.stack > m.fm
           then substr(lag(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack),1,m.ct) || ss.new_payload
 ```
-If ss.stack > m.fm, then the crates are coming from a row **before** this one. We can access that row using lag.
+If ss.stack > m.fm, then the crates are coming from a stack **before** this one. We can access that row using lag.
 ```sql
+lag(ss.new_payload,[offset]) over (order by ss.stack)
 abs(ss.stack-m.fm)
-lag(ss.new_payload,abs(ss.stack-m.fm)) over (order by ss.stack)
 substr(...,1,m.ct)
 ... || ss.new_payload
 ```
-The absolute value function abs() keeps the value positive. Lag() only takes positive values, throwing an error otherwise. Oracle is evaluating it even though the when clause (ss.stack>m.fm) should prevent it from every getting called with a negative value.
-
-........................Result lag() lets us access other rows, but those rows but we need to tell it in what order.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- lag() lets us access a previous row, but we have to define an ordering for "previous" to mean anything. We want a stack that is lower number than this one, so we order by the stack. By default lag() goes back one row from the current row, but [offset] can set the number to go back.
+- [offset] can only be positive, throwing an error otherwise. A quirk of the language, you have to call different functions (lead()/lag()) instead of using signed integers.
+- The ```when``` condition isn't short circuiting the evaluation. Oracle was giving an error for the when branch not taken. The abs() call prevents that.
+- substr() is used to get the needed crates from the other row.
+- Finally, we concatinate the existing value, pushing them further down the stack.
 ```
 select listagg(substr(new_payload,1,1)) within group (order by stack)
 from stack_states
@@ -251,3 +228,6 @@ group by move
 order by move desc fetch first 1 row only
 ;
 ```
+We've pushed and popped crates to the elves' delight. By design, the first letter in each stack is the top. The ```listagg()``` call let's me list them in order.
+
+Fin.

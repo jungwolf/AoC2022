@@ -1,0 +1,65 @@
+User
+I tested your solution. I created the table and rows with your create table statement and insert statements. I then ran your code:
+WITH GroupedData AS (
+    SELECT 
+        linenumber, 
+        linetext,
+        SUM(CASE WHEN TRIM(linetext) IS NULL OR TRIM(linetext) = '' THEN 1 ELSE 0 END) 
+            OVER (ORDER BY linenumber) AS Elf_Group
+    FROM input_data
+),
+SummedCalories AS (
+    SELECT 
+        Elf_Group, 
+        SUM(TO_NUMBER(linetext)) AS Total_Calories
+    FROM GroupedData
+    WHERE TRIM(linetext) IS NOT NULL AND TRIM(linetext) <> ''
+    GROUP BY Elf_Group
+)
+SELECT Elf_Group, Total_Calories
+FROM SummedCalories
+ORDER BY Total_Calories DESC
+FETCH FIRST 1 ROW ONLY;
+
+The result had no rows. Please review your code to find the problem.
+ChatGPT
+I apologize for the confusion earlier. Let's revise the approach to correctly handle the grouping of Elves and the calculation of total calories. The issue might be with how the groups are being identified and summed. We'll adjust the logic for incrementing the group number and ensure that the calorie values are correctly summed.
+
+Here's the revised SQL query:
+
+sql
+Copy code
+WITH ElfGroups AS (
+    SELECT 
+        linenumber, 
+        linetext,
+        SUM(CASE WHEN linetext IS NULL OR TRIM(linetext) = '' THEN 1 ELSE 0 END) 
+            OVER (ORDER BY linenumber ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS Elf_Group
+    FROM input_data
+),
+SummedCalories AS (
+    SELECT 
+        Elf_Group, 
+        SUM(CASE WHEN linetext IS NOT NULL AND TRIM(linetext) <> '' THEN TO_NUMBER(linetext) ELSE 0 END) AS Total_Calories
+    FROM ElfGroups
+    GROUP BY Elf_Group
+)
+SELECT Elf_Group, Total_Calories
+FROM SummedCalories
+WHERE Total_Calories > 0
+ORDER BY Total_Calories DESC
+FETCH FIRST 1 ROW ONLY;
+Changes and Explanation:
+
+ElfGroups CTE: The logic for incrementing the Elf_Group is adjusted. The SUM window function now correctly increments the group number each time a blank line (or NULL) is encountered.
+
+SummedCalories CTE: This part sums the calories for each Elf group. It handles potential blank or NULL values in linetext and ensures that only non-blank lines are summed.
+
+The final SELECT statement retrieves the Elf group with the highest total calories. It filters out groups with zero calories (which could represent blank lines) and orders the groups by Total_Calories in descending order, fetching only the top row.
+
+This revised query should correctly handle the grouping and summing of calorie values, and return the Elf group carrying the most calories.
+
+
+
+
+

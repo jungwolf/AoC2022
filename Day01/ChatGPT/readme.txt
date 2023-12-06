@@ -1,4 +1,7 @@
 How well can ChatGPT answer the problem in Oracle sql?
+-------------------------------------
+Big caveat. ChatGPT includes more recent data than before. This problem is from 2022 and multiple people posted solutions in sql on Github. It may have trained on the solutions. I should redo this on a recent problem not likely in its training set.
+-------------------------------------
 
 chat01.txt: Output of first chat
 chat01_script.sql: I formatted it's sql statements and ran them. Output wasn't correct.
@@ -19,3 +22,4 @@ In chat02 I told it the output was incorrect and to review it's code. The new sq
 In chat01_script_my_review.sql I debug the original code. In Oracle, the empty string '' is considered NULL. That is, ('' = '') is false and ('' is NULL) is true. I don't know if other databases have the same rule. In any case, ChatGPT didn't handle '' correctly.
 
 Then, I realized I can just tell it about the empty string. Chat03 has the results. The final sql worked.
+
